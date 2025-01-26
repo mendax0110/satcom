@@ -6,7 +6,7 @@
  * 1. setRange <minFreq>,<maxFreq> - Set the frequency range (e.g., "setRange 50,1400").
  * 2. toggleLCD - Toggle the LCD display on/off.
  * 3. toggleTone - Toggle tone generation on/off.
- * 4. toggleLowpass - Toggle the software LowpassFilter on/off
+ * 4. toggleLowpass - Toggle the software LowpassFilter on/off.
  * 5. calibrate - Calibrate the ADC using a known reference voltage in millivolts.
  * 6. autoCycle - Toggle auto-cycling through different displays.
  * 7. display <index> - Set the display to a specific view (0-5):
@@ -18,6 +18,11 @@
  *    - 5: Frequency Bar Graph
  * 8. setGain <gainFactor> - Set the software-based gain factor for voltage measurements.
  *    - Gain factor values: 1.0 (default), 2.0 (double gain), 0.5 (reduce gain), etc.
+ * 9. saveSettings - Save the current settings (e.g., frequency range, gain factor) to EEPROM.
+ * 10. loadSettings - Load the saved settings from EEPROM.
+ * 11. calibrateLive - Perform a live calibration by adjusting values dynamically.
+ * 12. setVoltageRange <range> - Set the voltage measurement range (e.g., "setVoltageRange 5" or "setVoltageRange 3.3").
+ *     - Supported ranges: 5.0 V (default) or 3.3 V.
  *
  * The Serial Plotter outputs the following data for visualization:
  * - ADC: The raw ADC value (0-255).
@@ -25,10 +30,16 @@
  * - Voltage_mV: The measured voltage (in millivolts).
  * - Frequency: The calculated frequency (in Hz).
  *
+ * The new features allow:
+ * - Saving and restoring user-defined settings across power cycles using EEPROM.
+ * - Performing live calibration for more precise measurements.
+ * - Switching between voltage ranges (0-5 V or 0-3.3 V) for flexible operation.
+ *
  * Make sure the ADS7830 ADC is connected to the I2C bus and the LCD is properly wired.
  */
 
 #include <Wire.h>
+#include <EEPROM.h>
 #include <LiquidCrystal.h>
 
 // ADS7830 Class Declaration
@@ -134,6 +145,15 @@ int historyIndex = 0;
 enum DisplayType { DISPLAY_ADC, DISPLAY_VOLTAGE, DISPLAY_MV, DISPLAY_FREQUENCY, DISPLAY_VOLTAGE_BAR, DISPLAY_FREQUENCY_BAR };
 const int numDisplays = 6;
 
+// EEPTROM-Adresses for saving values
+const int EEPROM_FREQ_MIN_ADDR = 0;
+const int EEPROM_FREQ_MAX_ADDR = 4;
+const int EEPROM_GAIN_ADDR = 8;
+const int EEPROM_VOLTAGE_RANGE_ADDR = 12;
+
+// range
+float voltageRange = 3.3;
+
 void displayMessageOnLCD(String message)
 {
     lcd.clear();
@@ -150,6 +170,60 @@ void displayMessageOnLCD(String message)
     {
         lcd.setCursor(0, 0);
         lcd.print(message);
+    }
+}
+
+void saveSettings()
+{
+    EEPROM.put(EEPROM_FREQ_MIN_ADDR, frequencyMin);
+    EEPROM.put(EEPROM_FREQ_MAX_ADDR, frequencyMax);
+    EEPROM.put(EEPROM_GAIN_ADDR, gainFactor);
+    EEPROM.put(EEPROM_VOLTAGE_RANGE_ADDR, voltageRange);
+    displayMessageOnLCD("[INFO] Saved Settings.");
+}
+
+void loadSettings()
+{
+    EEPROM.get(EEPROM_FREQ_MIN_ADDR, frequencyMin);
+    EEPROM.get(EEPROM_FREQ_MAX_ADDR, frequencyMax);
+    EEPROM.get(EEPROM_GAIN_ADDR, gainFactor);
+    EEPROM.get(EEPROM_VOLTAGE_RANGE_ADDR, voltageRange);
+    
+    if (frequencyMin <= 0 || frequencyMax <= frequencyMin)
+    {
+        frequencyMin = 50;
+        frequencyMax = 1400;
+    }
+
+    if (gainFactor <= 0)
+        gainFactor = 1.0;
+    
+    if (voltageRange <= 0 || voltageRange > 5.0)
+        voltageRange = 3.3;
+
+    displayMessageOnLCD("[INFO] Loaded Settings.");
+}
+
+void liveCalibration()
+{
+    displayMessageOnLCD("[INFO] Please enter Voltage (mV): ");
+    while (!Serial.available());
+    float knownVoltage = Serial.parseFloat();
+    scaleFactor = knownVoltage / ((adcValue / 255.0) * voltageRange * 1000);
+    displayMessageOnLCD("[INFO] Done with live calibration");
+    saveSettings();
+}
+
+void changeVoltageRange(float newRange)
+{
+    if (newRange == 3.3 || newRange == 5.0)
+    {
+        voltageRange = newRange;
+        displayMessageOnLCD("[INFO] Voltagerange set to: " + String(voltageRange) + "V");
+    }
+    else
+    {
+        displayMessageOnLCD("[ERROR] No valid Volaterange set!");
     }
 }
 
@@ -285,6 +359,23 @@ void processSerialInput(String input)
             Serial.println("[ERROR] Invalid display index.");
         }
     }
+    else if (input.startsWith("saveSettings"))
+    {
+        saveSettings();
+    }
+    else if (input.startsWith("loadSettings"))
+    {
+        loadSettings();
+    }
+    else if (input == "liveCalibrate")
+    {
+        liveCalibration();
+    }
+    else if (input.startsWith("setVoltageRange"))
+    {
+        float newRange = input.substring(16).toFloat();
+        changeVoltageRange(newRange);
+    }
     else
     {
         Serial.println("[ERROR] Unknown command.");
@@ -369,6 +460,8 @@ void setup()
     {
         Serial.println("[SUCCESS] ADS7830 setup successful!");
     }
+
+    loadSettings();
 }
 
 void loop()
@@ -381,7 +474,7 @@ void loop()
         if (lowPassEnabled) 
             adcValue = applyLowPassFilter(adcValue);
 
-        voltage = ((adcValue / 255.0) * 3.3) * scaleFactor;
+        voltage = ((adcValue / 255.0) * voltageRange) * scaleFactor;
         voltage_mV = voltage * 1000;
         frequency = map(adcValue, 0, 255, frequencyMin, frequencyMax);
 
