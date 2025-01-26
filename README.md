@@ -6,7 +6,7 @@ This Arduino sketch is designed for controlling a small-scale radio telescope. I
 
 ## Overview
 
-This code is the backbone of a radio telescope project. The telescope captures signals and processes them with the ADS7830 ADC. The data can be displayed on an LCD for local monitoring or visualized in real-time using the Serial Plotter. Key features include frequency range adjustment, signal gain control, and toggling of various display and processing modes.
+This code is the backbone of a radio telescope project. The telescope captures signals and processes them with the ADS7830 ADC. The data can be displayed on an LCD for local monitoring or visualized in real-time using the Serial Plotter. Key features include frequency range adjustment, signal gain control, toggling of various display and processing modes, and settings persistence using EEPROM.
 
 ---
 
@@ -17,6 +17,8 @@ This code is the backbone of a radio telescope project. The telescope captures s
 - Control and customization via Serial Monitor commands.
 - Real-time visualization on the Serial Plotter.
 - Tools for signal calibration and filtering.
+- Persistent settings storage in EEPROM.
+- Flexible voltage measurement ranges (0-5V or 0-3.3V).
 
 ---
 
@@ -66,6 +68,24 @@ This code is the backbone of a radio telescope project. The telescope captures s
   - `2.0` (double gain)  
   - `0.5` (reduce gain)
 
+### 9. Save Settings
+- **Command:** `saveSettings`  
+- **Description:** Saves the current settings (e.g., frequency range, gain factor) to EEPROM for persistence across power cycles.
+
+### 10. Load Settings
+- **Command:** `loadSettings`  
+- **Description:** Loads the saved settings from EEPROM.
+
+### 11. Live Calibration
+- **Command:** `calibrateLive`  
+- **Description:** Performs dynamic calibration, allowing real-time adjustment for more precise measurements.
+
+### 12. Set Voltage Range
+- **Command:** `setVoltageRange <range>`  
+- **Description:** Sets the voltage measurement range.  
+- **Supported Ranges:** `5.0` (default) or `3.3`.  
+- **Example:** `setVoltageRange 3.3`
+
 ---
 
 ## Serial Plotter Outputs
@@ -94,3 +114,6 @@ This code forms the foundation of a radio telescope, enabling hobbyists, educato
 - Analyze and monitor radio frequency signals.
 - Study celestial phenomena emitting in the radio spectrum.
 - Experiment with signal processing techniques.
+- Persist and restore custom settings for consistent results.
+
+---
